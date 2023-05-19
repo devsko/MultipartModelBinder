@@ -1,0 +1,19 @@
+# For more info on HTTP files go to https://aka.ms/vs/httpfile
+POST https://localhost:7038/x
+Content-Type: multipart/mixed; boundary="==:boundary:=="
+
+--==:boundary:==
+Content-Type: application/json; charset=utf-8
+Content-Disposition: form-data; name="dto1"
+
+{"p1":"asdf","p2":0}
+--==:boundary:==
+Content-Type: application/octet-stream
+
+Hello world!
+--==:boundary:==
+Content-Type: application/json; charset=utf-8
+
+{"q1":"oiio","q2":42}
+--==:boundary:==--
+
