@@ -1,12 +1,11 @@
-﻿using System.IO.Pipelines;
-using System.Reflection;
+﻿using System.Linq.Expressions;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace WebApplication3
 {
     public sealed class MultipartReaderDisposer : IAsyncDisposable
     {
-        private static PropertyInfo? _getFinalBoundaryFound;
+        private static Func<Stream, bool>? _getFinalBoundaryFound;
 
         private readonly MultipartReader _reader;
         private readonly FileMultipartSection _section;
@@ -21,20 +20,36 @@ namespace WebApplication3
             _reader = reader;
             _section = section;
             _url = url;
-
-            if (_getFinalBoundaryFound is null)
-            {
-                _getFinalBoundaryFound = _section.Section.Body.GetType().GetProperty("FinalBoundaryFound", BindingFlags.Instance | BindingFlags.Public);
-            }
         }
 
         public async ValueTask DisposeAsync()
         {
             await _section.Section.Body.DrainAsync(default);
-            if ((bool?)_getFinalBoundaryFound?.GetValue(_section.Section.Body) == false)
+            if (!GetFinalBoundaryFound())
             {
                 throw new InvalidOperationException($"Multipart content not read completely because of tail stream '{_section.Name}' {_url}.");
             }
+        }
+
+        private bool GetFinalBoundaryFound()
+        {
+            Func<Stream, bool>? getFinalBoundaryFound = _getFinalBoundaryFound;
+            if (getFinalBoundaryFound is null)
+            {
+                Type streamType = _section.Section.Body.GetType();
+                ParameterExpression streamParameter = Expression.Parameter(typeof(Stream));
+                getFinalBoundaryFound = Expression
+                    .Lambda<Func<Stream, bool>>(
+                        Expression.Property(
+                            Expression.Convert(streamParameter, streamType), 
+                            "FinalBoundaryFound"),
+                        streamParameter)
+                    .Compile();
+
+                _getFinalBoundaryFound = getFinalBoundaryFound;
+            }
+
+            return getFinalBoundaryFound(_section.Section.Body);
         }
     }
 }
