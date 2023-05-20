@@ -7,26 +7,40 @@ namespace WebApplication3
     {
         [HttpPost("/x")]
         [Consumes("multipart/mixed")]
-        public async Task<IActionResult> Put([FromMultipart]Dto body)
+        public async Task<IActionResult> Put1(
+            [FromMultipart] Nested1Dto n1dto, 
+            [FromMultipart] Nested2Dto? n2dto, 
+            [FromMultipart(Name = "XXX")] StatusEnum status, 
+            [FromMultipart(IsTailStream = true)] IFormFile? file)
         {
-            using (Stream stream = body.file!.OpenReadStream())
+            using (Stream stream = file!.OpenReadStream())
+            await using (FileStream save = new(@"C:\Users\stefa\Downloads\test.tif", FileMode.Create))
             {
-                MemoryStream local = new((int)stream.Length);
-                await stream.CopyToAsync(local);
-                Console.WriteLine(local.ToArray().Length);
+                await stream.CopyToAsync(save);
             }
 
             return Ok();
         }
+
+        [HttpPost("/y")]
+        [Consumes("multipart/mixed")]
+        public async Task<IActionResult> Put2(
+            [FromMultipart] Nested1Dto n1dto,
+            [FromMultipart] Nested2Dto? n2dto,
+            [FromMultipart(Name = "XXX")] StatusEnum status,
+            [FromMultipart(IsTailStream = false)] IFormFile? file)
+        {
+            using (Stream stream = file!.OpenReadStream())
+            await using (FileStream save = new(@"C:\Users\stefa\Downloads\test.tif", FileMode.Create))
+            {
+                await stream.CopyToAsync(save);
+            }
+
+            return Ok();
+        }
+
     }
 
-    public class Dto
-    {
-        public Nested1Dto n1dto { get; set; }
-        public Nested2Dto? n2Dto { get; set; }
-        public IFormFile? file { get; set; }
-        public StatusEnum status { get; set; }
-    }
     public record Nested1Dto(string Str, int Int);
     public class Nested2Dto
     {
