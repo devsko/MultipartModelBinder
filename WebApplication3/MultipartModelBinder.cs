@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace WebApplication3
@@ -11,7 +12,7 @@ namespace WebApplication3
     public class MultipartModelBinder : IModelBinder
     {
         private readonly JsonOptions _jsonOptions;
-        private readonly ConcurrentDictionary<ActionDescriptor, string?> _tailStreamSectionNames = new(); 
+        private readonly ConcurrentDictionary<ActionDescriptor, string?> _tailStreamNames = new(); 
 
         public MultipartModelBinder(JsonOptions jsonOptions)
         {
@@ -20,24 +21,27 @@ namespace WebApplication3
 
         public async Task BindModelAsync(ModelBindingContext bindingContext)
         {
-            MultipartCollection multipart = await bindingContext.HttpContext.Request.ReadMultipartAsync(GetTailStreamSectionName, bindingContext.HttpContext.RequestAborted);
+            MultipartCollection multipart = await bindingContext.HttpContext.Request.ReadMultipartAsync(GetTailStreamName, bindingContext.HttpContext.RequestAborted);
 
             object? value = GetMultipartValue(multipart, bindingContext.ModelMetadata);
             bindingContext.Result = ModelBindingResult.Success(value);
 
-            string? GetTailStreamSectionName()
+            string? GetTailStreamName()
             {
-                return _tailStreamSectionNames.GetOrAdd(bindingContext.ActionContext.ActionDescriptor, GetTailStreamSectionName);
+                return _tailStreamNames.GetOrAdd(bindingContext.ActionContext.ActionDescriptor, GetTailStreamName);
 
-                string? GetTailStreamSectionName(ActionDescriptor action)
+                string? GetTailStreamName(ActionDescriptor action)
                 {
-                    return action
-                        .Parameters
-                        .Cast<ControllerParameterDescriptor>()
-                        .Select(p => (p.Name, Attribute: p.ParameterInfo.GetCustomAttribute<FromMultipartAttribute>()!))
-                        .Where(t => t.Attribute.IsTailStream)
-                        .Select(t => t.Attribute.Name ?? t.Name)
-                        .SingleOrDefault();
+                    foreach (ParameterDescriptor parameter in action.Parameters)
+                    {
+                        FromMultipartAttribute? attribute = ((IParameterInfoParameterDescriptor)parameter).ParameterInfo.GetCustomAttribute<FromMultipartAttribute>();
+                        if (attribute?.IsTailStream == true)
+                        {
+                            return attribute.Name ?? parameter.Name;
+                        }
+                    }
+
+                    return null;
                 }
             }
         }
