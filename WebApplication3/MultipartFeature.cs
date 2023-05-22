@@ -110,7 +110,7 @@ namespace WebApplication3
                             long length;
                             if (hasTailStream)
                             {
-                                _request.HttpContext.Response.RegisterForDisposeAsync(new MultipartReaderDisposer(reader, fileSection, _request.GetDisplayUrl()));
+                                _request.HttpContext.Response.RegisterForDispose(new MultipartReaderDisposer(fileSection, _request.GetDisplayUrl()));
                                 length = int.MaxValue;
                             }
                             else

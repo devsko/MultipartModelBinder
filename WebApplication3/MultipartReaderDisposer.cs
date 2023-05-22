@@ -3,40 +3,40 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace WebApplication3
 {
-    public sealed class MultipartReaderDisposer : IAsyncDisposable
+    public sealed class MultipartReaderDisposer : IDisposable
     {
         private static Func<Stream, bool>? _getFinalBoundaryFound;
 
-        private readonly MultipartReader _reader;
         private readonly FileMultipartSection _section;
         private readonly string _url;
 
-        public MultipartReaderDisposer(MultipartReader reader, FileMultipartSection section, string url)
+        public MultipartReaderDisposer(FileMultipartSection section, string url)
         {
-            ArgumentNullException.ThrowIfNull(reader);
             ArgumentNullException.ThrowIfNull(section);
             ArgumentNullException.ThrowIfNull(url);
 
-            _reader = reader;
             _section = section;
             _url = url;
         }
 
-        public async ValueTask DisposeAsync()
+        public void Dispose()
         {
-            await _section.Section.Body.DrainAsync(default);
-            if (!GetFinalBoundaryFound())
+            Stream stream = _section.Section.Body;
+
+            // Length in diesem Stream ist die größte jemals erreichte Position. Nur 0 wenn niemals gelesen
+            // https://github.com/dotnet/aspnetcore/blob/3639b9b53af970c897fe1ea01d7b959662391a69/src/Http/WebUtilities/src/MultipartReaderStream.cs#L68
+            if (stream.Length > 0 && !GetFinalBoundaryFound(stream))
             {
                 throw new InvalidOperationException($"Multipart content not read completely because of tail stream '{_section.Name}' {_url}.");
             }
         }
 
-        private bool GetFinalBoundaryFound()
+        private static bool GetFinalBoundaryFound(Stream stream)
         {
             Func<Stream, bool>? getFinalBoundaryFound = _getFinalBoundaryFound;
             if (getFinalBoundaryFound is null)
             {
-                Type streamType = _section.Section.Body.GetType();
+                Type streamType = stream.GetType();
                 ParameterExpression streamParameter = Expression.Parameter(typeof(Stream));
                 getFinalBoundaryFound = Expression
                     .Lambda<Func<Stream, bool>>(
@@ -49,7 +49,7 @@ namespace WebApplication3
                 _getFinalBoundaryFound = getFinalBoundaryFound;
             }
 
-            return getFinalBoundaryFound(_section.Section.Body);
+            return getFinalBoundaryFound(stream);
         }
     }
 }
